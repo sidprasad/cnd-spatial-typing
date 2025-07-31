@@ -1,11 +1,12 @@
+import Mathlib.Data.Real.Basic
+
 namespace CnD
 
 structure Box where
-  xmin : Float
-  ymin : Float
-  width : Float
-  height : Float
-deriving Repr
+  xmin : Real
+  ymin : Real
+  width : Real
+  height : Real
 
 instance : Inhabited Box where
   default := { xmin := 0.0, ymin := 0.0, width := 1.0, height := 1.0 }
@@ -27,6 +28,8 @@ def directly_above (a b : Box) : Prop := a.ymin + a.height = b.ymin ∧ vertical
 def directly_below (a b : Box) : Prop := b.ymin + b.height = a.ymin ∧ vertically_aligned a b
 
 
+
+
 def contains (rect : Box) (box : Box) : Prop :=
   rect.xmin ≤ box.xmin ∧
   box.xmin + box.width ≤ rect.xmin + rect.width ∧
@@ -40,5 +43,7 @@ def grouped (boxes : List Box) (realization : Realization) : Prop :=
     -- No box not in the list is contained in the rectangle
     -- I'm concerned about this part --w hat if
     (∀ (n : Nat), contains rect (realization n) → ∃ box ∈ boxes, realization n = box)
+
+
 
 end CnD
