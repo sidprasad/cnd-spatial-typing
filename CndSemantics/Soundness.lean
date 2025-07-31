@@ -17,5 +17,15 @@ theorem soundness {R : Realization} {C : Constraint} :
   | directly_below_rule h => simp [satisfies]; exact h
   | group_rule h => simp [satisfies]; exact h;
 
+-- "Every spatially well-typed (Cope and Drag-typed) data structure can be correctly realized by a valid layout."
+theorem soundness_well_typed {Γ : List Constraint} {R : Realization} :
+  (∀ C ∈ Γ, Provable R C) → well_typed Γ R := by
+  intro h
+  unfold well_typed
+  intro C hC
+  apply soundness
+  exact h C hC
+
+
 
 end CnD
