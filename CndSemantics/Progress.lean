@@ -4,7 +4,8 @@ import CndSemantics.Soundness
 
 namespace CnD
 
--- Definition: A constraint set is satisfiable if there exists a realization that satisfies all constraints
+-- Definition: A constraint set is satisfiable if there exists a
+-- realization that satisfies all constraints
 def Satisfiable (Γ : List Constraint) : Prop :=
   ∃ R : Realization, well_typed Γ R
 
@@ -20,15 +21,13 @@ theorem satisfiable_or_unsatisfiable (Γ : List Constraint) :
   · exact Or.inl h
   · exact Or.inr h
 
--- Progress theorem: The CnD constraint system is decidable
--- This means we can always determine if a constraint set is satisfiable or not
--- (The algorithm implementation would go in a separate file)
-theorem decidable_satisfiability (Γ : List Constraint) :
-  Decidable (Satisfiable Γ) := by
-  -- For now, we use classical decidability
-  -- A constructive proof would require implementing a decision algorithm
+
+
+theorem decidable_satisfiability (Γ : List Constraint) : Decidable (Satisfiable Γ) := by
   classical
-  infer_instance
+  by_cases h : Satisfiable Γ
+  · exact isTrue h
+  · exact isFalse h
 
 -- Progress property: CnD never gets stuck
 -- This is the main theorem requested in the issue
@@ -44,7 +43,7 @@ theorem empty_satisfiable : Satisfiable [] := by
   simp at hC
 
 -- Lemma: If we can derive a contradiction from constraints, the set is unsatisfiable
-theorem contradiction_implies_unsatisfiable (Γ : List Constraint) 
+theorem contradiction_implies_unsatisfiable (Γ : List Constraint)
   (h : ∀ R : Realization, ∃ C ∈ Γ, ¬ satisfies R C) :
   Unsatisfiable Γ := by
   unfold Unsatisfiable Satisfiable well_typed
@@ -73,16 +72,16 @@ theorem directly_left_right_contradiction (a b : Nat) :
   unfold directly_left directly_right at h_left h_right
   obtain ⟨h_left_eq, h_left_align⟩ := h_left
   obtain ⟨h_right_eq, h_right_align⟩ := h_right
-  -- This leads to a contradiction: 
+  -- This leads to a contradiction:
   -- h_left_eq: (R a).xmin + (R a).width = (R b).xmin
-  -- h_right_eq: (R b).xmin + (R b).width = (R a).xmin  
+  -- h_right_eq: (R b).xmin + (R b).width = (R a).xmin
   -- Substituting the first into the second gives us a geometric impossibility
   sorry
 
 -- Termination property: Any constraint solving algorithm for CnD will terminate
 -- This is a meta-theorem about algorithms, not a specific algorithm
 theorem cnd_termination_property :
-  ∀ Γ : List Constraint, ∃ result : Bool, 
+  ∀ Γ : List Constraint, ∃ result : Bool,
     (result = true → Satisfiable Γ) ∧ (result = false → Unsatisfiable Γ) := by
   intro Γ
   classical
@@ -92,7 +91,7 @@ theorem cnd_termination_property :
     · intro; exact h
     · intro h_false; simp at h_false
   · use false
-    constructor  
+    constructor
     · intro h_true; simp at h_true
     · intro; exact h
 
