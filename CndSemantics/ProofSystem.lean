@@ -28,7 +28,8 @@ inductive Provable : Realization → Constraint → Prop
 | directly_below_rule {R : Realization} {a b : Nat}
     (h : directly_below (R a) (R b)) :
     Provable R (Constraint.directly_below a b)
-| group_rule {R : Realization} {S : List Nat} :
+| group_rule {R : Realization} {S : List Nat}
+    (h : grouped (S.map R) R) :
     Provable R (Constraint.group S)
 
 end CnD
