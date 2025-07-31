@@ -1,0 +1,10 @@
+name = "cnd-semantics"
+version = "0.1.0"
+defaultTargets = ["cnd-semantics"]
+
+[[lean_lib]]
+name = "CndSemantics"
+
+[[lean_exe]]
+name = "cnd-semantics"
+root = "Main"
