@@ -17,4 +17,5 @@ theorem soundness {R : Realization} {C : Constraint} :
   | directly_below_rule h => simp [satisfies]; exact h
   | group_rule h => simp [satisfies]; exact h;
 
+
 end CnD
