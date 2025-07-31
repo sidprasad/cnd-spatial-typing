@@ -9,7 +9,11 @@ inductive Constraint
 | directly_right (a b : Nat)
 | directly_above (a b : Nat)
 | directly_below (a b : Nat)
-| group          (S : List Nat)
+| group          (S : List Nat) -- Maybe this should be finset?
+-- | cyclic_clockwise
+-- | cyclic_counterclockwise
+
+
 deriving Repr, BEq
 
 end CnD

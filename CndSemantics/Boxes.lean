@@ -27,5 +27,18 @@ def directly_above (a b : Box) : Prop := a.ymin + a.height = b.ymin ∧ vertical
 def directly_below (a b : Box) : Prop := b.ymin + b.height = a.ymin ∧ vertically_aligned a b
 
 
+def contains (rect : Box) (box : Box) : Prop :=
+  rect.xmin ≤ box.xmin ∧
+  box.xmin + box.width ≤ rect.xmin + rect.width ∧
+  rect.ymin ≤ box.ymin ∧
+  box.ymin + box.height ≤ rect.ymin + rect.height
+
+def grouped (boxes : List Box) (realization : Realization) : Prop :=
+  ∃ (rect : Box),
+    -- Every box in the list is contained in the rectangle
+    (∀ box ∈ boxes, contains rect box) ∧
+    -- No box not in the list is contained in the rectangle
+    -- I'm concerned about this part --w hat if
+    (∀ (n : Nat), contains rect (realization n) → ∃ box ∈ boxes, realization n = box)
 
 end CnD
