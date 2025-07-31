@@ -5,3 +5,4 @@ import CndSemantics.Constraints
 import CndSemantics.Semantics
 import CndSemantics.ProofSystem
 import CndSemantics.Soundness
+import CndSemantics.Progress
