@@ -12,3 +12,11 @@ def Satisfiable (Γ : List Constraint) : Prop :=
 -- Definition: A constraint set is unsatisfiable if no realization can satisfy all constraints
 def Unsatisfiable (Γ : List Constraint) : Prop :=
   ¬ Satisfiable Γ
+
+
+-- Some assumptions:
+-- Finite number of boxes
+-- Finite number of constraints
+
+
+-- We already have a satisfies function that checks if a realization satisfies a constraint.
