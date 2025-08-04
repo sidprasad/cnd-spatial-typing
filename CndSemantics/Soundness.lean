@@ -5,21 +5,28 @@ import CndSemantics.Definitions
 
 namespace CnD
 
---------------------------------------------------------------------------------
--- Core definitions
---------------------------------------------------------------------------------
 
+-- A constraint set is the embodiment of the CnD *spec*.
 abbrev ConstraintSet := Finset Constraint
+
+-- While a realization is a *model* of the spec.
+
 
 /-- One dynamic step: add a constraint. -/
 inductive Step : ConstraintSet → ConstraintSet → Prop
 | add (Γ : ConstraintSet) (C : Constraint) : Step Γ (Γ ∪ {C})
 
-/-- A realization satisfies all constraints in Γ. -/
+/-- A realization satisfies all constraints in Γ.
+Γ ⊢ R     (written as satisfies_all R Γ)
+
+
+-/
 def satisfies_all (R : Realization) (Γ : ConstraintSet) : Prop :=
   ∀ C ∈ Γ, satisfies R C
 
-/-- Models(Γ) is the set of all realizations satisfying Γ. -/
+/-- Models(Γ) is the set of all realizations satisfying Γ.
+models Γ := { R | Γ ⊢ R }
+ -/
 def models (Γ : ConstraintSet) : Set Realization :=
   { R | satisfies_all R Γ }
 
