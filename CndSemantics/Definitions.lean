@@ -119,6 +119,12 @@ inductive Constraint
 
 deriving BEq, DecidableEq
 
+def satisfies (R : Realization) : Constraint → Prop
+| Constraint.left a b => atom_left_of a b R
+| Constraint.above a b => atom_above a b R
+| Constraint.horizontally_aligned a b => atom_horizontally_aligned a b R
+| Constraint.vertically_aligned a b => atom_vertically_aligned a b R
+| Constraint.group S => atoms_grouped (S.toList) R
 
 
 
