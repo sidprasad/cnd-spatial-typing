@@ -244,10 +244,10 @@ theorem completeness {Γ : Finset Constraint} {R : Realization} :
   induction Γ using Finset.induction_on generalizing R
   case empty => exact WellTyped.empty R
   case insert Γ C _ ih =>
-    have hSub : R ∈ models Γ := by
+    have hSub : R ∈ (models {Γ}) := by
       unfold models satisfies_all at hR
       intro D hD; exact hR D (Finset.mem_insert_of_mem hD)
-    have hSat : satisfies R C := by
+    have hSat : satisfies_all R C := by
       unfold models satisfies_all at hR
       exact hR C (Finset.mem_insert_self C Γ)
     exact WellTyped.add (ih hSub) hSat
@@ -298,7 +298,7 @@ def StepProg.star := Relation.ReflTransGen StepProg
 
 /-- Type safety: well-typed realizations remain valid under refinement. -/
 theorem type_safety {Γ Γ' : Finset Constraint} {R : Realization} :
-  (Γ ⊢ R) → StepProg.star Γ Γ' → R ∈ models Γ' := by
+  (WellTyped Γ R) → StepProg.star Γ Γ' → R ∈ models Γ' := by
   intro hWT hSteps
   induction hSteps with
   | refl => exact Typing.soundness hWT
