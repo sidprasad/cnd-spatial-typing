@@ -27,41 +27,25 @@ instance : Inhabited Box where
 abbrev Atom := Nat
 abbrev Realization := Atom → Option Box
 
-
-
 def horizontally_aligned (a b : Box) : Bool := a.ymin = b.ymin
 def vertically_aligned (a b : Box) : Bool := a.xmin  = b.xmin
-
 def left_of (a b : Box) : Bool := a.xmin + a.width < b.xmin
--- def right_of (a b : Box) : Bool := a.xmin + a.width > b.xmin
 def above (a b : Box) : Bool := a.ymin + a.height < b.ymin
--- def below (a b : Box) : Bool := (a.ymin + a.height) > b.ymin
-
--- def directly_left (a b : Box) : Bool := a.xmin + a.width = b.xmin ∧ horizontally_aligned a b
--- def directly_right (a b : Box) : Bool := b.xmin + b.width = a.xmin ∧ horizontally_aligned a b
--- def directly_above (a b : Box) : Bool := a.ymin + a.height = b.ymin ∧ vertically_aligned a b
--- def directly_below (a b : Box) : Bool := b.ymin + b.height = a.ymin ∧ vertically_aligned a b
-
 
 
 -- TODO: Cyclic constraints.
+-- All cyclic constraints compile to a combination of the basic constraints.
 
 
-
-
-
--- NOW WE NEED TO WRITE THE ATOM VERSION OF THESE FUNCTIONS (IS THIS OVERKILL?)
 def atom_left_of (a b : Atom) (realization : Realization) : Bool :=
   match realization a, realization b with
   | some boxA, some boxB => left_of boxA boxB
   | _, _ => false
 
-
 def atom_above (a b : Atom) (realization : Realization) : Bool :=
   match realization a, realization b with
   | some boxA, some boxB => above boxA boxB
   | _, _ => false
-
 
 def atom_horizontally_aligned (a b : Atom) (realization : Realization) : Bool :=
   match realization a, realization b with
@@ -127,6 +111,25 @@ def satisfies (R : Realization) : Constraint → Prop
 | Constraint.group S => atoms_grouped (S.toList) R
 
 
+def overlap (a b : Box) : Bool :=
+  let horizontal_overlap := a.xmin < b.xmin + b.width ∧ b.xmin < a.xmin + a.width
+  let vertical_overlap := a.ymin < b.ymin + b.height ∧ b.ymin < a.ymin + a.height
+  horizontal_overlap ∧ vertical_overlap
+
+def well_formed (R : Realization) : Prop :=
+  ∀ a, match R a with
+       | some box => box.height > 0 ∧ box.width > 0
+       | none => True
+  ∧
+  ∀ a b, a ≠ b → match R a, R b with
+                 | some boxA, some boxB =>
+                     ¬ overlap boxA boxB
+                 | _, _ => True
+  -- What about how each atom is assigned to at most one box?
+  ∧
+  ∀ a b, a ≠ b → match R a, R b with
+                 | some boxA, some boxB => boxA ≠ boxB
+                 | _, _ => True
 
 
 end CnD
