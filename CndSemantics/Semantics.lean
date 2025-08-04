@@ -9,7 +9,7 @@ namespace CnD
 -- TODO: NO overlapping boxes in a Realization.
 
 
--- TODO: THis needs to be re-written
+
 def satisfies (R : Realization) : Constraint → Prop :=
 | Constraint.left a b => atom_left_of (R a) (R b)
 | Constraint.above a b => atom_above (R a) (R b)
@@ -17,7 +17,7 @@ def satisfies (R : Realization) : Constraint → Prop :=
 | Constraint.vertically_aligned a b => atom_vertically_aligned (R a) (R b)
 | Constraint.group S => grouped (S.map R) R
 
-def well_typed (Γ : List Constraint) (R : Realization) : Prop :=
+def well_typed (Γ : Finset Constraint) (R : Realization) : Prop :=
   ∀ C ∈ Γ, satisfies R C
 
 abbrev ConstraintSet := Finset Constraint
@@ -28,7 +28,7 @@ def models (S : ConstraintSet) : Set Realization :=
   { R | satisfies_all R S }
 
 
-theorem refinement (S : ConstraintSet) (C : Constraint) :
+theorem refinement (S : Finset Constraint) (C : Constraint) :
   models (S ∪ ({C} : Finset Constraint)) ⊆ models S := by
   intro R h
   unfold models satisfies_all at *

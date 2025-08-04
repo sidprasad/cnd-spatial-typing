@@ -117,7 +117,8 @@ inductive Constraint
 | vertically_aligned (a b : Atom)
 | group          (S : Finset Atom) -- Maybe this should be finset?
 
-deriving BEq
+deriving BEq, DecidableEq
+
 
 
 
