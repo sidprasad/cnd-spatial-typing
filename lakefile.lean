@@ -4,7 +4,7 @@ open Lake DSL
 package cndsemantics
 
 @[default_target]
-lean_lib CndSemantics
+lean_lib Main
 
 require mathlib from
   git "https://github.com/leanprover-community/mathlib4" @ "master"
