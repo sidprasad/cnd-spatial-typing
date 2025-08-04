@@ -3,14 +3,14 @@ import CndSemantics.Definitions
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Real.Basic
 
-namespace CnD
-
+namespace Semantics
+open CnD
 /--
 * C
 * Realization `R` = (a concrete placement of atoms that satisfies a set of spatial constraints).
 -/
 
-/-- Constraint set `Γ` = a program/specification.-/
+/- Constraint set `Γ` = a program/specification.-/
 abbrev ConstraintSet := Finset Constraint
 def satisfies_all (R : Realization) (S : ConstraintSet) : Prop :=
   ∀ c ∈ S, satisfies R c
@@ -88,20 +88,18 @@ theorem closure_under_constraint_addition (S : ConstraintSet) (C : Constraint) (
 -- TODO!
 
 theorem unsat_models_empty (S : ConstraintSet) :
-  ¬ satisfiable S ↔ models S = ∅ := by
-  constructor
-  -- · intro h
-  --   ext R
-  -- · simp [models, satisfiable] at *
-    sorry
+   ¬ satisfiable S ↔ models S = ∅ := sorry
+  -- constructor
+  -- -- · intro h
+  -- --   ext R
+  -- -- · simp [models, satisfiable] at *
+  --   sorry
+
+
+-- TODO: Empty constraint set admits all layouts
+
+--
 
 
 
-
--- we want a theorem that says IF unsat, then by refinement R goes to empty set
-
-
-
-
-
-end CnD
+end Semantics

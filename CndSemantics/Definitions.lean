@@ -1,6 +1,5 @@
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Real.Basic
-import Std.Data.HashMap
 
 
 namespace CnD
@@ -99,7 +98,7 @@ inductive Constraint
 | above          (a b : Atom)
 | horizontally_aligned (a b : Atom)
 | vertically_aligned (a b : Atom)
-| group          (S : Finset Atom) -- Maybe this should be finset?
+| group          (S : Finset Atom)
 
 deriving BEq, DecidableEq
 
@@ -130,6 +129,8 @@ def well_formed (R : Realization) : Prop :=
   ∀ a b, a ≠ b → match R a, R b with
                  | some boxA, some boxB => boxA ≠ boxB
                  | _, _ => True
+
+
 
 
 end CnD
