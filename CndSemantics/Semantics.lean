@@ -32,7 +32,5 @@ theorem refinement (S : Finset Constraint) (C : Constraint) :
   models (S ∪ ({C} : Finset Constraint)) ⊆ models S := by
   intro R h
   unfold models satisfies_all at *
-  simp at *
-  exact And.left h
-
+  simp_all
 end CnD
