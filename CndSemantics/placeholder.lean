@@ -238,7 +238,6 @@ theorem soundness {Γ : Finset Constraint} {R : Realization} :
       exact R
 
 
--- TODO: THis is not correct. I need to think it through.
 theorem completeness {Γ : Finset Constraint} {R : Realization} :
   R ∈ models Γ → WellTyped Γ R := by
   intro h
@@ -254,16 +253,13 @@ theorem completeness {Γ : Finset Constraint} {R : Realization} :
     exact h D (Finset.mem_insert_of_mem hD)
   have hSat : satisfies R C := by  -- Extract the fact that R satisfies the new constraint C
     exact h C (Finset.mem_insert_self C Γ')
-  have hSatAll : satisfies_all R {C} := by
-    unfold satisfies_all
-    intro D hD
-    simp [Finset.mem_singleton] at hD
-    rw [hD]
-    exact hSat
   -- Now we can construct the typing judgment
   simp_all
-  -- Ahh back where we started
-
+  have hWT : WellTyped Γ' R := ih h
+  have hTyped := WellTyped.add hWT hSat
+  rw [Finset.union_comm] at hTyped
+  rw [← Finset.insert_eq] at hTyped
+  exact hTyped
 end Typing
 
 --------------------------------------------------------------------------------
