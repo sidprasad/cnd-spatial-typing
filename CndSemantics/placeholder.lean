@@ -266,22 +266,80 @@ end Typing
 -- §7 Dynamics
 --------------------------------------------------------------------------------
 
+
+--------------------------------------------------------------------------------
+-- §7 Dynamics
+--------------------------------------------------------------------------------
+
 /-
-Constraint programs evolve by adding constraints (refinement).
+There are two complementary formulations of dynamics:
+
+1. **Untyped semantic dynamics**:
+   At the semantic level, we may always add a constraint `c` to Γ.
+   If the constraint is inconsistent, the set of models collapses to ∅.
+
+2. **Typed program dynamics**:
+   For a *fixed realization R*,
+   we only allow adding a constraint `c` that `R` already satisfies.
+   This ensures typing is preserved: well-typed realizations stay well-typed.
 -/
 
-inductive StepProg : Finset Constraint → Finset Constraint → Prop
-| add (Γ : Finset Constraint) (C : Constraint) : StepProg Γ (Γ ∪ {C})
+-- Untyped semantics ------------------------------------------------------------
 
 inductive StepSem : Set Realization → Set Realization → Prop
-| add (Γ : Finset Constraint) (C : Constraint) :
-    StepSem (models Γ) (models (Γ ∪ {C}))
+| add (Γ : Finset Constraint) (c : Constraint) :
+    StepSem (models Γ) (models (Γ ∪ {c}))
 
-theorem sem_preservation {S T : Set Realization} :
+/-- Multi-step closure of semantic steps. -/
+def StepSem.star := Relation.ReflTransGen StepSem
+
+
+/-- Semantic preservation: model sets only shrink. -/
+theorem sem_preservation_step {S T : Set Realization} :
   StepSem S T → T ⊆ S := by
   intro h
   cases h with
-  | add Γ C => exact refinement Γ C
+  | add Γ c =>
+    exact refinement Γ c
+
+/-- Semantic preservation across many steps. -/
+theorem sem_preservation_star {S T : Set Realization} :
+  StepSem.star S T → T ⊆ S := by
+  intro h
+  induction h with
+  | refl =>
+    -- base case: S = T, so T ⊆ S
+    intro x hx; exact hx
+  | tail G step ih => exact Set.Subset.trans (sem_preservation_step step) ih
+
+
+-- Typed program dynamics -------------------------------------------------------
+
+inductive StepProg (R : Realization) : Finset Constraint → Finset Constraint → Prop
+| add {Γ : Finset Constraint} {c : Constraint} :
+    satisfies R c →
+    StepProg R Γ (Γ ∪ {c})
+
+def StepProg.star (R : Realization) := Relation.ReflTransGen (StepProg R)
+
+/-- Preservation: typed steps preserve well-typedness. -/
+lemma typing_preserved_step {Γ Γ' : Finset Constraint} {R : Realization} :
+  WellTyped Γ R → StepProg R Γ Γ' → WellTyped Γ' R := by
+  intro hWT hStep
+  cases hStep with
+  | add hSat =>
+    exact WellTyped.add hWT hSat
+
+lemma typing_preserved_along_star {Γ Γ' : Finset Constraint} {R : Realization} :
+  WellTyped Γ R → StepProg.star R Γ Γ' → WellTyped Γ' R := by
+  intro hWT hStar
+  induction hStar with
+  | refl => exact hWT
+  | tail G step ih => exact typing_preserved_step ih step
+
+
+
+
 
 --------------------------------------------------------------------------------
 -- §8 Meta-Theorems
@@ -303,29 +361,13 @@ theorem typing_semantics_equiv (Γ : Finset Constraint) (R : Realization) :
 
 
 
-/-- Multi-step closure of StepProg. -/
-def StepProg.star := Relation.ReflTransGen StepProg
 
+/-- Type safety: well-typed realizations remain semantic models along typed steps. -/
 theorem type_safety {Γ Γ' : Finset Constraint} {R : Realization} :
-  WellTyped Γ R → well_formed R → StepProg.star Γ Γ' → R ∈ models Γ' := by
-  intro hWT hWF hSteps
-  induction hSteps with
-  | refl =>
-    exact Typing.soundness hWT hWF
-  | tail Δ Γ'' hStar ih hStep =>
-    cases hStep with
-    | add Δ C =>
-      have hΔ : R ∈ models Δ := ih hWF
-      have hSat : satisfies R C := by
-        cases hWT with
-        | empty => contradiction
-        | add _ _ _ _ hSat => exact hSat
-      unfold models satisfies_all at hΔ
-      intro D hD
-      cases Finset.mem_union.mp hD with
-      | inl hIn => exact hΔ D hIn
-      | inr hEq =>
-        rw [Finset.mem_singleton.mp hEq]
-        exact hSat
+  WellTyped Γ R → StepProg.star R Γ Γ' → R ∈ models Γ' := by
+  intro hWT hSteps
+  have hWT' := typing_preserved_along_star hWT hSteps
+  exact Typing.soundness hWT'
+
 
 end CnD
