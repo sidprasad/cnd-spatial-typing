@@ -219,9 +219,9 @@ theorem preservation {Γ : Finset Constraint} {R : Realization} {C : Constraint}
   WellTyped.add
 
 theorem soundness {Γ : Finset Constraint} {R : Realization} :
-  WellTyped Γ R → well_formed R → R ∈ models Γ := by
-  intro h1 h2
-  unfold models satisfies_all well_formed at *
+  WellTyped Γ R → R ∈ models Γ := by
+  intro h1
+  unfold models satisfies_all at *
   induction h1 with
   | empty R =>
     -- Base case: Γ = ∅
@@ -301,22 +301,31 @@ theorem typing_semantics_equiv (Γ : Finset Constraint) (R : Realization) :
   WellTyped Γ R ↔ R ∈ models Γ :=
 ⟨Typing.soundness, Typing.completeness⟩
 
+
+
 /-- Multi-step closure of StepProg. -/
 def StepProg.star := Relation.ReflTransGen StepProg
 
-/-- Type safety: well-typed realizations remain valid under refinement. -/
 theorem type_safety {Γ Γ' : Finset Constraint} {R : Realization} :
-  (WellTyped Γ R) → StepProg.star Γ Γ' → R ∈ models Γ' := by
-  intro hWT hSteps
+  WellTyped Γ R → well_formed R → StepProg.star Γ Γ' → R ∈ models Γ' := by
+  intro hWT hWF hSteps
   induction hSteps with
-  | refl => exact Typing.soundness hWT
+  | refl =>
+    exact Typing.soundness hWT hWF
   | tail Δ Γ'' hStar ih hStep =>
     cases hStep with
     | add Δ C =>
-      have hΔ : R ∈ models Δ := ih
-      have hSat : satisfies R C := hWT.elim
-        (fun _ => by contradiction)
-        (fun _ _ hSat => hSat)
-      exact hSat ▸ hΔ
+      have hΔ : R ∈ models Δ := ih hWF
+      have hSat : satisfies R C := by
+        cases hWT with
+        | empty => contradiction
+        | add _ _ _ _ hSat => exact hSat
+      unfold models satisfies_all at hΔ
+      intro D hD
+      cases Finset.mem_union.mp hD with
+      | inl hIn => exact hΔ D hIn
+      | inr hEq =>
+        rw [Finset.mem_singleton.mp hEq]
+        exact hSat
 
 end CnD
