@@ -5,25 +5,29 @@ import Mathlib.Data.Real.Basic
 
 namespace CnD
 
+/--
+* C
+* Realization `R` = (a concrete placement of atoms that satisfies a set of spatial constraints).
+-/
 
--- Programs : Constraint sets
-
-
-
--- TODO: NO overlapping boxes in a Realization.
-
-
-
-
-def well_typed (Γ : Finset Constraint) (R : Realization) : Prop :=
-  ∀ C ∈ Γ, satisfies R C
-
+/-- Constraint set `Γ` = a program/specification.-/
 abbrev ConstraintSet := Finset Constraint
 def satisfies_all (R : Realization) (S : ConstraintSet) : Prop :=
   ∀ c ∈ S, satisfies R c
 
+
+
 def models (S : ConstraintSet) : Set Realization :=
   { R | satisfies_all R S }
+
+/--
+  $$
+  \llbracket Γ \rrbracket = \{ R \mid ∀ C ∈ Γ, \; R \models C \}
+  $$
+
+  The denotation of `Γ` is the set of all realizations that satisfy its constraints.
+-/
+
 
 
 -- By definition: satisfiable sets have at least one realization.
@@ -33,7 +37,15 @@ def satisfiable (S : ConstraintSet) : Prop :=
 
 
 
+/--
 
+Adding a new constraint narrows the set of models:
+
+  $$
+  \llbracket Γ ∪ \{C\} \rrbracket \subseteq \llbracket Γ \rrbracket
+  $$
+
+-/
 theorem refinement (S : Finset Constraint) (C : Constraint) :
   models (S ∪ ({C} : Finset Constraint)) ⊆ models S := by
   intro R h
@@ -41,10 +53,23 @@ theorem refinement (S : Finset Constraint) (C : Constraint) :
   simp_all
 
 
----
 
--- realizations are preserved when constraints they satisfy are added.
-theorem preservation (S : ConstraintSet) (C : Constraint) (R : Realization) :
+
+-- Widening: Removing a constraint widens the set of models
+theorem widening (S : ConstraintSet) (C : Constraint) :
+  models (S \ {C}) ⊇ models S := by
+  intro R h
+  unfold models satisfies_all at *
+  intro c hc
+  apply h
+  simp [Finset.mem_sdiff] at hc
+  exact hc.1
+
+
+/--
+   The set of realizations satisfying S is closed under the addition of constraints that are already satisfied by those realizations.
+-/
+theorem closure_under_constraint_addition (S : ConstraintSet) (C : Constraint) (R : Realization) :
   R ∈ models S → satisfies R C → R ∈ models (S ∪ {C}) := by
   intro h hC
   unfold models satisfies_all at *
@@ -60,13 +85,14 @@ theorem preservation (S : ConstraintSet) (C : Constraint) (R : Realization) :
 
 ---
 
+-- TODO!
+
 theorem unsat_models_empty (S : ConstraintSet) :
   ¬ satisfiable S ↔ models S = ∅ := by
   constructor
-  · intro h
-    ext R
-    simp [models, satisfiable] at *
-    intro hR
+  -- · intro h
+  --   ext R
+  -- · simp [models, satisfiable] at *
     sorry
 
 
