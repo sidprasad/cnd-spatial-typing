@@ -119,16 +119,15 @@ between pairs of atoms.
 -/
 inductive OrientationConstraint
 | left (a b : Atom)
+| directly_left (a b : Atom)
 | above (a b : Atom)
-| horizontally_aligned (a b : Atom)
+| directly_above (a b : Atom)
 | vertically_aligned (a b : Atom)
+| horizontally_aligned (a b : Atom)
+
 deriving BEq, DecidableEq
 -- Lift to atoms
-def atom_left_of (a b : Atom) (R : Realization) : Prop :=
-  well_formed R ∧ left_of (R a) (R b)
 
-def atom_above (a b : Atom) (R : Realization) : Prop :=
-  well_formed R ∧ above (R a) (R b)
 
 def atom_horizontally_aligned (a b : Atom) (R : Realization) : Prop :=
   well_formed R ∧ horizontally_aligned (R a) (R b)
@@ -136,14 +135,20 @@ def atom_horizontally_aligned (a b : Atom) (R : Realization) : Prop :=
 def atom_vertically_aligned (a b : Atom) (R : Realization) : Prop :=
   well_formed R ∧ vertically_aligned (R a) (R b)
 
+def atom_left_of (a b : Atom) (R : Realization) : Prop :=
+  well_formed R ∧ left_of (R a) (R b)
+
+def atom_above (a b : Atom) (R : Realization) : Prop :=
+  well_formed R ∧ above (R a) (R b)
 
 -- Orientation satisfaction
 def satisfies_orient (R : Realization) : OrientationConstraint → Prop
 | .left a b                 => atom_left_of a b R
 | .above a b                => atom_above a b R
-| .horizontally_aligned a b => atom_horizontally_aligned a b R
-| .vertically_aligned a b   => atom_vertically_aligned a b R
-
+| .directly_left a b        => atom_left_of a b R ∧ atom_horizontally_aligned a b R
+| .directly_above a b       => atom_above a b R ∧ atom_vertically_aligned a b R
+| .vertically_aligned a b    => atom_vertically_aligned a b R
+| .horizontally_aligned a b  => atom_horizontally_aligned a b R
 
 
 
@@ -275,6 +280,50 @@ theorem monotonicity {P Q : Program} (hPQ : P ⊆ Q) : (denotes Q) ⊆ (denotes 
   refine ⟨hWF, ?_⟩
   intro D hDP
   exact hSatQ D (hPQ hDP)
+
+--------------------------------------------------------------------------------
+-- §7 Syntactic Sugar
+--------------------------------------------------------------------------------
+
+namespace Sugar
+
+/--
+Syntactic sugar for `right_of`: `a` is to the right of `b`.
+-/
+def right_of (a b : Atom) : Constraint :=
+  Constraint.orient (OrientationConstraint.left b a)
+
+/--
+Syntactic sugar for `below`: `a` is below `b`.
+-/
+def below (a b : Atom) : Constraint :=
+  Constraint.orient (OrientationConstraint.above b a)
+
+
+/--
+Syntactic sugar for `directly_right`: `a` is directly to the right of `b`.
+-/
+def directly_right (a b : Atom) : Constraint :=
+Constraint.orient (OrientationConstraint.directly_left b a)
+
+
+
+/--
+Syntactic sugar for `directly_below`: `a` is directly below `b`.
+-/
+def directly_below (a b : Atom) : Constraint :=
+  Constraint.orient (OrientationConstraint.directly_above b a)
+
+
+/--
+Syntactic sugar for `cyclic_counterclockwise`: reverse the list of atoms
+and apply the cyclic constraint.
+-/
+def cyclic_counterclockwise (L : List Atom) : Constraint :=
+  Constraint.cyclic L.reverse
+
+end Sugar
+
 
 
 end CnD
