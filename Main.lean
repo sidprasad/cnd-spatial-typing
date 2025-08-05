@@ -107,7 +107,7 @@ def atom_vertically_aligned (a b : Atom) (R : Realization) : Prop :=
   | _, _ => False
 
 --------------------------------------------------------------------------------
--- §3 Grouping and Well-Formedness
+-- §3 Grouping
 --------------------------------------------------------------------------------
 
 /-
@@ -153,6 +153,7 @@ inductive Constraint
 | horizontally_aligned  (a b : Atom)
 | vertically_aligned    (a b : Atom)
 | group                 (S : Finset Atom)
+| cyclic                (L : List Atom)
 deriving BEq, DecidableEq
 
 def satisfies (R : Realization) : Constraint → Prop
@@ -161,6 +162,8 @@ def satisfies (R : Realization) : Constraint → Prop
 | Constraint.horizontally_aligned a b => atom_horizontally_aligned a b R
 | Constraint.vertically_aligned a b   => atom_vertically_aligned a b R
 | Constraint.group S                  => atoms_grouped S R
+| Constraint.cyclic L                 => True  -- Placeholder for cyclic constraints
+
 
 --------------------------------------------------------------------------------
 -- §5 Semantics View
