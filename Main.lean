@@ -464,7 +464,7 @@ def translateFragment (fragment : List Atom) (direction : Bool) -- true for cloc
 
 -- Main desugaring function: translates cyclic constraints to disjunctive sets of core constraints
 def desugarCyclicConstraint (constraint : SugarConstraint) 
-    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (List Constraint) :=
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : List (List Constraint) :=
   match constraint with
   | SugarConstraint.clockwise atoms => 
       translateFragment atoms true minRadius minSepWidth minSepHeight
@@ -473,8 +473,8 @@ def desugarCyclicConstraint (constraint : SugarConstraint)
 
 -- Desugar multiple cyclic constraints  
 def desugarCyclicConstraints (constraints : List SugarConstraint) 
-    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (List Constraint) :=
-  constraints.bind (fun c => desugarCyclicConstraint c minRadius minSepWidth minSepHeight)
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : List (List Constraint) :=
+  List.bind constraints (fun c => desugarCyclicConstraint c minRadius minSepWidth minSepHeight)
 
 -- Helper to convert List to Finset for compatibility with existing framework
 def constraintListToFinset (constraints : List Constraint) : Finset Constraint :=
@@ -486,8 +486,8 @@ def constraintListToFinset (constraints : List Constraint) : Finset Constraint :
 
 -- Convert desugared constraints to the Finset format used by the semantic framework
 def desugarToFinsetConstraints (sugarConstraints : List SugarConstraint) 
-    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (Finset Constraint) :=
-  desugarCyclicConstraints sugarConstraints minRadius minSepWidth minSepHeight |>.map constraintListToFinset
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : List (Finset Constraint) :=
+  List.map constraintListToFinset (desugarCyclicConstraints sugarConstraints minRadius minSepWidth minSepHeight)
 
 /-
 Usage example:
@@ -496,23 +496,47 @@ Usage example:
 let cyclicConstraint := SugarConstraint.clockwise [1, 2, 3]
 
 -- Desugar to core constraints (returns multiple constraint sets)
-let coreConstraintSets := desugarCyclicConstraint cyclicConstraint
+let coreConstraintSets := desugarCyclicConstraintDefault cyclicConstraint
 
 -- Each set in coreConstraintSets represents one possible circular arrangement
 -- The union of all possible arrangements gives the complete semantics
+
+-- Test if a realization satisfies the cyclic constraint
+example (R : Realization) : Prop := satisfiesCyclicConstraintDefault R cyclicConstraint
 ```
 -/
+
+-- Example definitions to demonstrate the framework
+def exampleClockwiseConstraint : SugarConstraint := SugarConstraint.clockwise [1, 2, 3]
+def exampleCounterclockwiseConstraint : SugarConstraint := SugarConstraint.counterclockwise [4, 5, 6, 7]
+
+-- Example desugaring 
+def exampleDesugaredClockwise : List (List Constraint) := desugarCyclicConstraintDefault exampleClockwiseConstraint
+def exampleDesugaredCounterclockwise : List (List Constraint) := desugarCyclicConstraintDefault exampleCounterclockwiseConstraint
+
+-- Example semantic check
+example (R : Realization) : Prop := satisfiesCyclicConstraintDefault R exampleClockwiseConstraint
 
 -- Semantic interpretation: a realization satisfies a cyclic constraint if it
 -- satisfies at least one of the desugared constraint sets
 def satisfiesCyclicConstraint (R : Realization) (constraint : SugarConstraint) 
-    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : Prop :=
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : Prop :=
   let constraintSets := desugarToFinsetConstraints [constraint] minRadius minSepWidth minSepHeight
-  ∃ constraintSet ∈ constraintSets, satisfies_all R constraintSet
+  ∃ constraintSet, constraintSet ∈ constraintSets ∧ satisfies_all R constraintSet
 
 -- Extension to multiple cyclic constraints
 def satisfiesAllCyclicConstraints (R : Realization) (constraints : List SugarConstraint)
-    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : Prop :=
-  ∀ constraint ∈ constraints, satisfiesCyclicConstraint R constraint minRadius minSepWidth minSepHeight
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : Prop :=
+  ∀ constraint, constraint ∈ constraints → satisfiesCyclicConstraint R constraint minRadius minSepWidth minSepHeight
+
+-- Convenience functions with default parameters
+def desugarCyclicConstraintDefault (constraint : SugarConstraint) : List (List Constraint) :=
+  desugarCyclicConstraint constraint 100 15 15
+
+def satisfiesCyclicConstraintDefault (R : Realization) (constraint : SugarConstraint) : Prop :=
+  satisfiesCyclicConstraint R constraint 100 15 15
+
+def satisfiesAllCyclicConstraintsDefault (R : Realization) (constraints : List SugarConstraint) : Prop :=
+  satisfiesAllCyclicConstraints R constraints 100 15 15
 
 end CnD
