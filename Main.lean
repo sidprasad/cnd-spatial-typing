@@ -107,13 +107,12 @@ def atom_vertically_aligned (a b : Atom) (R : Realization) : Prop :=
   | _, _ => False
 
 --------------------------------------------------------------------------------
--- §3 Grouping
+-- §3 Structural Constraints: Grouping + Cycles
 --------------------------------------------------------------------------------
 
 /-
 We want to describe groups: sets of atoms enclosed in a bounding rectangle,
 that contain no other atoms.
-
 -/
 
 structure Rect where
@@ -139,6 +138,53 @@ def atoms_grouped (S : Finset Atom) (R : Realization) : Prop :=
 
 
 --------------------------------------------------------------------------------
+-- §3 Structural Relations: Grouping and Cyclic Order
+--------------------------------------------------------------------------------
+
+/-
+Beyond primitive binary relations, we also want to describe **structural
+constraints** that involve sets or sequences of atoms.
+
+Two key forms:
+  * Grouping: a set of atoms must be enclosed in a bounding rectangle,
+    with no extraneous atoms inside.
+  * Cyclic order: a sequence of atoms must be arranged around a circle,
+    up to rotation. Cyclic order is expressed entirely in terms of the
+    primitive constraints (left, above, alignment).
+-/
+
+-- Grouping --------------------------------------------------------------
+
+structure Rect where
+  xmin : Rat
+  ymin : Rat
+  xmax : Rat
+  ymax : Rat
+
+def contains (rect : Rect) (box : Box) : Prop :=
+  rect.xmin ≤ box.xmin ∧
+  box.xmin + box.width ≤ rect.xmax ∧
+  rect.ymin ≤ box.ymin ∧
+  box.ymin + box.height ≤ rect.ymax
+
+/--
+Atoms are grouped if there exists a rectangle enclosing exactly
+the atoms in `S`.
+-/
+def atoms_grouped (S : Finset Atom) (R : Realization) : Prop :=
+  ∃ (rect : Rect),
+    -- every atom in S is inside the rectangle
+    (∀ atom ∈ S, match R atom with
+                 | some box => contains rect box
+                 | none => False)
+    ∧
+    -- no other atom is inside
+    (∀ (n : Atom), match R n with
+                   | some box => contains rect box → n ∈ S
+                   | none => True)
+
+-
+--------------------------------------------------------------------------------
 -- §4 Constraint Language
 --------------------------------------------------------------------------------
 
@@ -162,7 +208,67 @@ def satisfies (R : Realization) : Constraint → Prop
 | Constraint.horizontally_aligned a b => atom_horizontally_aligned a b R
 | Constraint.vertically_aligned a b   => atom_vertically_aligned a b R
 | Constraint.group S                  => atoms_grouped S R
-| Constraint.cyclic L                 => True  -- Placeholder for cyclic constraints
+| Constraint.cyclic L                 => atoms_cyclic L R
+
+
+
+
+
+
+
+-- Cyclic order ----------------------------------------------------------
+
+/-- Angle step for a cycle of n atoms. -/
+def angleStep (n : Nat) : Rat := (2 * π ) / n
+
+/--
+Primitive constraints induced by placing two atoms at given angles
+on the unit circle.
+-/
+def constraints_from_angles (a b : Atom) (θa θb : Rat) : Finset Constraint :=
+  let xa := Real.cos θa
+  let ya := Real.sin θa
+  let xb := Real.cos θb
+  let yb := Real.sin θb
+  ∅
+  -- horizontal relation
+  |> (if xa < xb then (· ∪ {Constraint.left a b})
+      else if xa > xb then (· ∪ {Constraint.left b a})
+      else (· ∪ {Constraint.vertically_aligned a b}))
+  -- vertical relation
+  |> (if ya < yb then (· ∪ {Constraint.above a b})
+      else if ya > yb then (· ∪ {Constraint.above b a})
+      else (· ∪ {Constraint.horizontally_aligned a b}))
+
+/--
+Constraints for perturbation `k` of a cycle of atoms.
+Atoms are placed evenly around the unit circle, rotated by offset `k`.
+-/
+def perturbation_constraints (L : List Atom) (k : Nat) : Finset Constraint :=
+  let n := L.length
+  let step := angleStep n
+  let angles := List.range n |>.map (fun i => (i + k) * step)
+  (List.range n).bind (fun i =>
+    let a := L.get! i
+    let b := L.get! ((i+1) % n)   -- wrap-around
+    (constraints_from_angles a b (angles.get! i) (angles.get! ((i+1) % n))).toList
+  ) |>.toFinset
+
+/--
+Atoms satisfy a cyclic constraint if there exists some perturbation
+(offset k) such that all constraints induced by that perturbation hold.
+-/
+def atoms_cyclic (L : List Atom) (R : Realization) : Prop :=
+  ∃ (k : Nat), k < L.length ∧ satisfies_all R (perturbation_constraints L k)
+
+
+
+
+
+
+
+
+
 
 
 --------------------------------------------------------------------------------
