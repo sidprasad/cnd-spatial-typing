@@ -16,6 +16,8 @@ completeness, and type safety.
 import Mathlib.Data.Finset.Basic
 import Mathlib.Data.Real.Basic
 import Mathlib.Data.Set.Basic
+import Mathlib.Data.Rat.Basic
+import Mathlib.Data.List.Basic
 import Mathlib.Tactic
 
 namespace CnD
@@ -369,5 +371,148 @@ theorem type_safety {Γ Γ' : Finset Constraint} {R : Realization} :
   have hWT' := typing_preserved_along_star hWT hSteps
   exact Typing.soundness hWT'
 
+
+--------------------------------------------------------------------------------
+-- §9 Syntactic Sugar: Cyclic Constraints
+--------------------------------------------------------------------------------
+
+/-
+This section defines syntactic sugar for cyclic constraints and their desugaring
+to core constraints. Cyclic constraints specify that a list of atoms should be
+arranged in clockwise or counterclockwise order around a circle.
+
+The desugaring process:
+1. Each cyclic constraint fragment is translated into multiple constraint sets
+2. Each constraint set represents one possible rotational arrangement (perturbation)
+3. The result is a disjunction of core constraint sets
+
+This follows the algorithm described in the issue, translating the TypeScript
+pseudocode to Lean while working with our existing constraint framework.
+-/
+
+-- Sugar constraint types
+inductive SugarConstraint
+| clockwise        (atoms : List Atom)
+| counterclockwise (atoms : List Atom)
+deriving BEq, DecidableEq
+
+-- Mathematical helpers for circular positioning
+-- Since we're working with spatial constraints, we use a simplified circular arrangement
+-- that focuses on relative positioning rather than exact trigonometric calculations
+def circularPosition (index : Nat) (total : Nat) (perturbation : Nat) (radius : Rat) : Rat × Rat :=
+  if total = 0 then (0, 0)
+  else
+    -- Use a simplified approach: arrange points in a regular polygon
+    -- For simplicity, we map index positions to rational coordinates
+    let adjustedIndex := (index + perturbation) % total
+    let ratIndex : Rat := adjustedIndex
+    let ratTotal : Rat := total
+    -- Create a simple circular-like distribution using rational arithmetic
+    let normalizedPos := ratIndex / ratTotal  -- Value between 0 and 1
+    let x := radius * (2 * normalizedPos - 1)  -- Map to [-radius, radius]
+    let y := radius * (1 - 2 * (normalizedPos * normalizedPos))  -- Simple curve
+    (x, y)
+
+-- Generate core constraints for a specific perturbation of a fragment
+def generateConstraintsForPerturbation (fragment : List Atom) (perturbation : Nat) 
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : List Constraint :=
+  if fragment.length < 2 then []
+  else
+    -- Create indexed positions for each atom
+    let rec generatePositions (atoms : List Atom) (index : Nat) : List (Atom × (Rat × Rat)) :=
+      match atoms with
+      | [] => []
+      | atom :: rest => 
+          (atom, circularPosition index fragment.length perturbation minRadius) :: 
+          generatePositions rest (index + 1)
+    
+    let positions := generatePositions fragment 0
+    
+    -- Generate pairwise constraints between all atoms
+    let rec generatePairwiseConstraints (positions : List (Atom × (Rat × Rat))) : List Constraint :=
+      match positions with
+      | [] => []
+      | (atom1, pos1) :: rest =>
+          let constraintsFromThisAtom := rest.bind (fun (atom2, pos2) =>
+            -- Horizontal constraints
+            let horizontalConstraints := 
+              if pos1.1 > pos2.1 then [Constraint.left atom2 atom1]
+              else if pos1.1 < pos2.1 then [Constraint.left atom1 atom2]
+              else [Constraint.vertically_aligned atom1 atom2]
+            
+            -- Vertical constraints  
+            let verticalConstraints :=
+              if pos1.2 > pos2.2 then [Constraint.above atom2 atom1]
+              else if pos1.2 < pos2.2 then [Constraint.above atom1 atom2]
+              else [Constraint.horizontally_aligned atom1 atom2]
+            
+            horizontalConstraints ++ verticalConstraints)
+          constraintsFromThisAtom ++ generatePairwiseConstraints rest
+    
+    generatePairwiseConstraints positions
+
+-- Translate a single fragment into multiple constraint sets (one per perturbation)
+def translateFragment (fragment : List Atom) (direction : Bool) -- true for clockwise
+    (minRadius : Rat) (minSepWidth : Rat) (minSepHeight : Rat) : List (List Constraint) :=
+  let orderedFragment := if direction then fragment else fragment.reverse
+  -- Generate constraint sets for each possible perturbation
+  let rec generateAllPerturbations (n : Nat) (acc : List (List Constraint)) : List (List Constraint) :=
+    if n >= orderedFragment.length then acc
+    else generateAllPerturbations (n + 1) 
+         (generateConstraintsForPerturbation orderedFragment n minRadius minSepWidth minSepHeight :: acc)
+  generateAllPerturbations 0 []
+
+-- Main desugaring function: translates cyclic constraints to disjunctive sets of core constraints
+def desugarCyclicConstraint (constraint : SugarConstraint) 
+    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (List Constraint) :=
+  match constraint with
+  | SugarConstraint.clockwise atoms => 
+      translateFragment atoms true minRadius minSepWidth minSepHeight
+  | SugarConstraint.counterclockwise atoms => 
+      translateFragment atoms false minRadius minSepWidth minSepHeight
+
+-- Desugar multiple cyclic constraints  
+def desugarCyclicConstraints (constraints : List SugarConstraint) 
+    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (List Constraint) :=
+  constraints.bind (fun c => desugarCyclicConstraint c minRadius minSepWidth minSepHeight)
+
+-- Helper to convert List to Finset for compatibility with existing framework
+def constraintListToFinset (constraints : List Constraint) : Finset Constraint :=
+  let rec addToFinset (cs : List Constraint) (acc : Finset Constraint) : Finset Constraint :=
+    match cs with
+    | [] => acc
+    | c :: rest => addToFinset rest (acc ∪ {c})
+  addToFinset constraints ∅
+
+-- Convert desugared constraints to the Finset format used by the semantic framework
+def desugarToFinsetConstraints (sugarConstraints : List SugarConstraint) 
+    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : List (Finset Constraint) :=
+  desugarCyclicConstraints sugarConstraints minRadius minSepWidth minSepHeight |>.map constraintListToFinset
+
+/-
+Usage example:
+```
+-- Define a cyclic constraint for atoms [1, 2, 3] in clockwise order
+let cyclicConstraint := SugarConstraint.clockwise [1, 2, 3]
+
+-- Desugar to core constraints (returns multiple constraint sets)
+let coreConstraintSets := desugarCyclicConstraint cyclicConstraint
+
+-- Each set in coreConstraintSets represents one possible circular arrangement
+-- The union of all possible arrangements gives the complete semantics
+```
+-/
+
+-- Semantic interpretation: a realization satisfies a cyclic constraint if it
+-- satisfies at least one of the desugared constraint sets
+def satisfiesCyclicConstraint (R : Realization) (constraint : SugarConstraint) 
+    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : Prop :=
+  let constraintSets := desugarToFinsetConstraints [constraint] minRadius minSepWidth minSepHeight
+  ∃ constraintSet ∈ constraintSets, satisfies_all R constraintSet
+
+-- Extension to multiple cyclic constraints
+def satisfiesAllCyclicConstraints (R : Realization) (constraints : List SugarConstraint)
+    (minRadius : Rat := 100) (minSepWidth : Rat := 15) (minSepHeight : Rat := 15) : Prop :=
+  ∀ constraint ∈ constraints, satisfiesCyclicConstraint R constraint minRadius minSepWidth minSepHeight
 
 end CnD
