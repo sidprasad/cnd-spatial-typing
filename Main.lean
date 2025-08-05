@@ -351,15 +351,16 @@ lemma satisfies_all_append_left {R : Realization} {Γ Δ : List Constraint} :
     cases C with
     | core c =>
       cases h with
-      | core _ hc hΓΔ =>
+      | core _ hc z hΓΔ =>
         -- IH gives SatisfiesAll R Γ from hΓΔ
         have hΓ := ih hΓΔ
-        exact SatisfiesAll.core hc hΓ
+        exact SatisfiesAll.core R c Γ z hΓ
+
     | structural s =>
       cases s with
       | group S =>
         cases h with
-        | group _ hg hΓΔ =>
+        | group _ hg z hΓΔ =>
           have hΓ := ih hΓΔ
           exact SatisfiesAll.group hg hΓ
       | cyclic L =>
@@ -410,7 +411,11 @@ lemma satisfies_all_finset_eq (Γ : Finset Constraint) (R : Realization) :
   rfl
 
 
+/--
+Maybe Γ is the wrong letter to use here.
+Its the program, not the env.
 
+-/
 def models (Γ : Finset Constraint) : Set Realization :=
   { R | satisfies_all R Γ }
 
