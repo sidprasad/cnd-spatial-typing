@@ -81,6 +81,16 @@ We define them at the box level, and then lift them
 to atoms via a realization.
 -/
 
+-- TODO: Maybe CoreConstraint is bad nomenclature. Really it is LayoutConstraint (or Relative Orientation Constraint)
+/-- Core constraints are binary geometric relations. -/
+inductive CoreConstraint
+| left                  (a b : Atom)
+| above                 (a b : Atom)
+| horizontally_aligned  (a b : Atom)
+| vertically_aligned    (a b : Atom)
+deriving BEq, DecidableEq
+
+
 def horizontally_aligned (a b : Box) : Prop := a.ymin = b.ymin
 def vertically_aligned   (a b : Box) : Prop := a.xmin = b.xmin
 def left_of              (a b : Box) : Prop := a.xmin + a.width < b.xmin
@@ -106,14 +116,38 @@ def atom_vertically_aligned (a b : Atom) (R : Realization) : Prop :=
   | some boxA, some boxB => vertically_aligned boxA boxB
   | _, _ => False
 
---------------------------------------------------------------------------------
--- §3 Structural Constraints: Grouping + Cycles
+def satisfies_core_constraint (R : Realization) (c : CoreConstraint) : Prop :=
+  match c with
+  | CoreConstraint.left a b                 => atom_left_of a b R
+  | CoreConstraint.above a b                => atom_above a b R
+  | CoreConstraint.horizontally_aligned a b => atom_horizontally_aligned a b R
+  | CoreConstraint.vertically_aligned a b   => atom_vertically_aligned a b R
+
+
+def satisfies_all_core_constraints (R : Realization) (cs : Finset CoreConstraint) : Prop :=
+  ∀ c ∈ cs, satisfies_core_constraint R c
+
+---------------------------------------------------------------------------------
+-- §3 Structural Relations: Grouping and Cyclic Order
 --------------------------------------------------------------------------------
 
 /-
-We want to describe groups: sets of atoms enclosed in a bounding rectangle,
-that contain no other atoms.
+Beyond primitive binary relations, we also want to describe **structural
+constraints** that involve sets or sequences of atoms.
+
+Two key forms:
+  * Grouping: a set of atoms must be enclosed in a bounding rectangle,
+    with no extraneous atoms inside.
+  * Cyclic order: a sequence of atoms must be arranged around a circle,
+    up to rotation. Cyclic order is expressed entirely in terms of the
+    primitive constraints (left, above, alignment).
 -/
+inductive StructuralConstraint
+| group   (S : Finset Atom)
+| cyclic  (L : List Atom)
+deriving BEq, DecidableEq
+
+-- Grouping --------------------------------------------------------------
 
 structure Rect where
   xmin : Rat
@@ -137,53 +171,109 @@ def atoms_grouped (S : Finset Atom) (R : Realization) : Prop :=
                    | none => True)
 
 
---------------------------------------------------------------------------------
--- §3 Structural Relations: Grouping and Cyclic Order
---------------------------------------------------------------------------------
+-- Cyclic order -----------------------------------------------------------
 
-/-
-Beyond primitive binary relations, we also want to describe **structural
-constraints** that involve sets or sequences of atoms.
-
-Two key forms:
-  * Grouping: a set of atoms must be enclosed in a bounding rectangle,
-    with no extraneous atoms inside.
-  * Cyclic order: a sequence of atoms must be arranged around a circle,
-    up to rotation. Cyclic order is expressed entirely in terms of the
-    primitive constraints (left, above, alignment).
--/
-
--- Grouping --------------------------------------------------------------
-
-structure Rect where
-  xmin : Rat
-  ymin : Rat
-  xmax : Rat
-  ymax : Rat
-
-def contains (rect : Rect) (box : Box) : Prop :=
-  rect.xmin ≤ box.xmin ∧
-  box.xmin + box.width ≤ rect.xmax ∧
-  rect.ymin ≤ box.ymin ∧
-  box.ymin + box.height ≤ rect.ymax
+open Real
+noncomputable def angleStep (n : Nat) : ℝ := (2 * π ) / n
 
 /--
-Atoms are grouped if there exists a rectangle enclosing exactly
-the atoms in `S`.
+Generate the core constraints implied by placing two atoms
+at given angles on the unit circle.
 -/
-def atoms_grouped (S : Finset Atom) (R : Realization) : Prop :=
-  ∃ (rect : Rect),
-    -- every atom in S is inside the rectangle
-    (∀ atom ∈ S, match R atom with
-                 | some box => contains rect box
-                 | none => False)
-    ∧
-    -- no other atom is inside
-    (∀ (n : Atom), match R n with
-                   | some box => contains rect box → n ∈ S
-                   | none => True)
+noncomputable def constraints_from_angles
+  (a b : Atom) (θa θb : ℝ) : Finset CoreConstraint :=
+  let xa := Real.cos θa
+  let ya := Real.sin θa
+  let xb := Real.cos θb
+  let yb := Real.sin θb
+  ∅
+  -- horizontal relation
+  |> (if xa < xb then (· ∪ {CoreConstraint.left a b})
+      else if xa > xb then (· ∪ {CoreConstraint.left b a})
+      else (· ∪ {CoreConstraint.vertically_aligned a b}))
+  -- vertical relation
+  |> (if ya < yb then (· ∪ {CoreConstraint.above a b})
+      else if ya > yb then (· ∪ {CoreConstraint.above b a})
+      else (· ∪ {CoreConstraint.horizontally_aligned a b}))
 
--
+
+/--
+Constraints for perturbation `k` of a cycle of atoms.
+The relative positions of atoms is based on how they might be placed evenly around
+the unit circle, rotated by offset `k`.
+-/
+noncomputable def perturbation_constraints (L : List Atom) (k : Nat) : Finset CoreConstraint :=
+  let n := L.length
+  let step := angleStep n
+  let angles : List ℝ := (List.range n).map (fun i => (i + k : ℕ) * step)
+  -- accumulate all constraints from consecutive pairs
+  (List.range n).foldl
+    (fun acc i =>
+      let a := L[i]!
+      let b := L[((i+1) % n)]!  -- wrap-around
+      acc ∪ constraints_from_angles a b (angles[i]!) (angles[((i+1) % n)]!))
+    ∅
+
+
+/--
+Atoms satisfy a cyclic constraint if there exists some perturbation
+(offset k) such that all constraints induced by that perturbation hold.
+-/
+
+def satisfies_perturbation (R : Realization) (L : List Atom) (k : Nat) : Prop :=
+  satisfies_all_core_constraints R (perturbation_constraints L k)
+
+
+def atoms_cyclic (L : List Atom) (R : Realization) : Prop :=
+  ∃ k, k < L.length ∧ satisfies_perturbation R L k
+
+
+
+
+/--
+Another way to think about this is that there is a large finite disjunction
+of constraint sets, that must be satisfied for cyclic order.
+
+
+TODO: PROVE THIS.
+-/
+lemma atoms_cyclic_iff_big_or (L : List Atom) (R : Realization) :
+  atoms_cyclic L R ↔
+    (List.range L.length).foldr (fun k acc => satisfies_perturbation R L k ∨ acc) False :=
+by
+  constructor
+  · -- → direction
+    intro ⟨k, hk, hSat⟩
+    sorry
+    -- k is in List.range L.length
+    -- have : k ∈ List.range L.length := List.mem_range.mpr hk
+    -- -- so the big OR holds
+    -- induction List.range L.length with
+    -- | nil => cases this
+    -- | cons k0 ks ih =>
+    --   simp [List.foldr]
+    --   cases this with
+    --   | inl hEq =>
+    --     subst hEq
+    --     exact Or.inl hSat
+    --   | inr hIn =>
+    --     exact Or.inr (ih hIn)
+  · -- ← direction
+    intro h
+    sorry
+    -- induction List.range L.length with
+    -- | nil => simp at h
+    -- | cons k0 ks ih =>
+    --   simp [List.foldr] at h
+    --   cases h with
+    --   | inl hSat =>
+    --     exact ⟨k0, Nat.zero_lt_succ _, hSat⟩
+    --   | inr hRest =>
+    --     rcases ih hRest with ⟨k, hk, hSat⟩
+    --     exact ⟨k+1, Nat.succ_lt_succ hk, hSat⟩
+
+
+
 --------------------------------------------------------------------------------
 -- §4 Constraint Language
 --------------------------------------------------------------------------------
@@ -193,78 +283,15 @@ The core constraint language for CnD: atomic spatial requirements
 over atoms, plus grouping.
 -/
 
+/--
+The full constraint language is the disjoint union of core and structural
+constraints. This is like "inheritance": every core or structural constraint
+can be lifted into a `Constraint`.
+-/
 inductive Constraint
-| left                  (a b : Atom)
-| above                 (a b : Atom)
-| horizontally_aligned  (a b : Atom)
-| vertically_aligned    (a b : Atom)
-| group                 (S : Finset Atom)
-| cyclic                (L : List Atom)
+| core       (c : CoreConstraint)
+| structural (s : StructuralConstraint)
 deriving BEq, DecidableEq
-
-def satisfies (R : Realization) : Constraint → Prop
-| Constraint.left a b                 => atom_left_of a b R
-| Constraint.above a b                => atom_above a b R
-| Constraint.horizontally_aligned a b => atom_horizontally_aligned a b R
-| Constraint.vertically_aligned a b   => atom_vertically_aligned a b R
-| Constraint.group S                  => atoms_grouped S R
-| Constraint.cyclic L                 => atoms_cyclic L R
-
-
-
-
-
-
-
--- Cyclic order ----------------------------------------------------------
-
-/-- Angle step for a cycle of n atoms. -/
-def angleStep (n : Nat) : Rat := (2 * π ) / n
-
-/--
-Primitive constraints induced by placing two atoms at given angles
-on the unit circle.
--/
-def constraints_from_angles (a b : Atom) (θa θb : Rat) : Finset Constraint :=
-  let xa := Real.cos θa
-  let ya := Real.sin θa
-  let xb := Real.cos θb
-  let yb := Real.sin θb
-  ∅
-  -- horizontal relation
-  |> (if xa < xb then (· ∪ {Constraint.left a b})
-      else if xa > xb then (· ∪ {Constraint.left b a})
-      else (· ∪ {Constraint.vertically_aligned a b}))
-  -- vertical relation
-  |> (if ya < yb then (· ∪ {Constraint.above a b})
-      else if ya > yb then (· ∪ {Constraint.above b a})
-      else (· ∪ {Constraint.horizontally_aligned a b}))
-
-/--
-Constraints for perturbation `k` of a cycle of atoms.
-Atoms are placed evenly around the unit circle, rotated by offset `k`.
--/
-def perturbation_constraints (L : List Atom) (k : Nat) : Finset Constraint :=
-  let n := L.length
-  let step := angleStep n
-  let angles := List.range n |>.map (fun i => (i + k) * step)
-  (List.range n).bind (fun i =>
-    let a := L.get! i
-    let b := L.get! ((i+1) % n)   -- wrap-around
-    (constraints_from_angles a b (angles.get! i) (angles.get! ((i+1) % n))).toList
-  ) |>.toFinset
-
-/--
-Atoms satisfy a cyclic constraint if there exists some perturbation
-(offset k) such that all constraints induced by that perturbation hold.
--/
-def atoms_cyclic (L : List Atom) (R : Realization) : Prop :=
-  ∃ (k : Nat), k < L.length ∧ satisfies_all R (perturbation_constraints L k)
-
-
-
-
-
 
 
 
@@ -279,8 +306,110 @@ def atoms_cyclic (L : List Atom) (R : Realization) : Prop :=
 Constraints can be read as truth conditions: they denote sets of realizations.
 -/
 
+
+
+/--
+Interpretation of constraints: what it means for a realization `R`
+to satisfy a single constraint.
+-/
+def satisfies (R : Realization) : Constraint → Prop
+| Constraint.core c => satisfies_core_constraint R c
+| Constraint.structural s =>
+  match s with
+  | StructuralConstraint.group S  => atoms_grouped S R
+  | StructuralConstraint.cyclic L => atoms_cyclic L R
+
+/--
+Judgment: `SatisfiesAll R Γ` means realization `R` satisfies all constraints in list `Γ`.
+This is defined inductively so that `cyclic` can branch existentially.
+-/
+inductive SatisfiesAll : Realization → List Constraint → Prop
+| nil (R) :
+    SatisfiesAll R []
+| core (R c Γ) :
+    satisfies_core_constraint R c →
+    SatisfiesAll R Γ →
+    SatisfiesAll R (Constraint.core c :: Γ)
+| group (R S Γ) :
+    atoms_grouped S R →
+    SatisfiesAll R Γ →
+    SatisfiesAll R (Constraint.structural (StructuralConstraint.group S) :: Γ)
+| cyclic (R L Γ k) :
+    k < L.length →
+    satisfies_perturbation R L k →
+    SatisfiesAll R Γ →
+    SatisfiesAll R (Constraint.structural (StructuralConstraint.cyclic L) :: Γ)
+
+lemma satisfies_all_append_left {R : Realization} {Γ Δ : List Constraint} :
+  SatisfiesAll R (Γ ++ Δ) → SatisfiesAll R Γ := by
+  induction Γ generalizing R Δ
+  case nil =>
+    intro _
+    exact SatisfiesAll.nil R
+  case cons C Γ ih =>
+    intro h
+    cases C with
+    | core c =>
+      cases h with
+      | core _ hc hΓΔ =>
+        -- IH gives SatisfiesAll R Γ from hΓΔ
+        have hΓ := ih hΓΔ
+        exact SatisfiesAll.core hc hΓ
+    | structural s =>
+      cases s with
+      | group S =>
+        cases h with
+        | group _ hg hΓΔ =>
+          have hΓ := ih hΓΔ
+          exact SatisfiesAll.group hg hΓ
+      | cyclic L =>
+        cases h with
+        | cyclic _ _ k hk hPert hΓΔ =>
+          have hΓ := ih hΓΔ
+          exact SatisfiesAll.cyclic R L Γ k hk hPert hΓ
+
+
+
+
+
+
+
+
+
+
+/--
+Satisfaction of a finite set of constraints:
+defined by picking any enumeration (`toList`) and using `SatisfiesAll`.
+TODO: Prove Order invariance.
+-/
 def satisfies_all (R : Realization) (Γ : Finset Constraint) : Prop :=
-  ∀ C ∈ Γ, satisfies R C
+  SatisfiesAll R Γ.toList
+
+
+
+
+
+lemma satisfies_all_perm {Γ : List Constraint} {Γ' : List Constraint} {R : Realization} :
+  Γ.Perm Γ' → (SatisfiesAll R Γ ↔ SatisfiesAll R Γ') := by
+  intro hperm
+  induction hperm generalizing R
+  case nil =>
+    -- Base case: both lists are empty
+    simp [SatisfiesAll.nil]
+  case cons x l l' hperm ih =>
+    -- Inductive case: x is added to both lists
+    cases x with
+    | core c => sorry
+    | structural s => sorry
+
+  case swap x y l => sorry
+  case trans l₁ l₂ l₃ h₁₂ h₂₃ ih₁₂ ih₂₃ => sorry
+
+lemma satisfies_all_finset_eq (Γ : Finset Constraint) (R : Realization) :
+  satisfies_all R Γ = SatisfiesAll R Γ.toList :=
+  rfl
+
+
 
 def models (Γ : Finset Constraint) : Set Realization :=
   { R | satisfies_all R Γ }
@@ -288,12 +417,21 @@ def models (Γ : Finset Constraint) : Set Realization :=
 def satisfiable (Γ : Finset Constraint) : Prop :=
   ∃ R, R ∈ models Γ
 
-theorem refinement (Γ : Finset Constraint) (C : Constraint) :
-    models (Γ ∪ {C}) ⊆ models Γ := by
-  intro R h
-  unfold models satisfies_all at *
-  intro D hD
-  exact h D (Finset.mem_union_left {C} hD)
+
+
+
+-- -- THIS SHOULD FAIL NOW. Isn't quite the refinement thm we want.
+-- theorem refinement (Γ : Finset Constraint) (C : Constraint) :
+--     models (Γ ∪ {C}) ⊆ models Γ := by
+--   intro R h
+--   unfold models satisfies_all at *
+--   intro D hD
+--   exact h D (Finset.mem_union_left {C} hD)
+
+
+
+
+
 
 --------------------------------------------------------------------------------
 -- §6 Type System View
