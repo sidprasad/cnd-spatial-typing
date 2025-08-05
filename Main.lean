@@ -290,20 +290,20 @@ namespace Sugar
 /--
 Syntactic sugar for `right_of`: `a` is to the right of `b`.
 -/
-def right_of (a b : Atom) : Constraint :=
+def atom_right_of (a b : Atom) : Constraint :=
   Constraint.orient (OrientationConstraint.left b a)
 
 /--
 Syntactic sugar for `below`: `a` is below `b`.
 -/
-def below (a b : Atom) : Constraint :=
+def atom_below (a b : Atom) : Constraint :=
   Constraint.orient (OrientationConstraint.above b a)
 
 
 /--
 Syntactic sugar for `directly_right`: `a` is directly to the right of `b`.
 -/
-def directly_right (a b : Atom) : Constraint :=
+def atom_directly_right (a b : Atom) : Constraint :=
 Constraint.orient (OrientationConstraint.directly_left b a)
 
 
@@ -311,7 +311,7 @@ Constraint.orient (OrientationConstraint.directly_left b a)
 /--
 Syntactic sugar for `directly_below`: `a` is directly below `b`.
 -/
-def directly_below (a b : Atom) : Constraint :=
+def atom_directly_below (a b : Atom) : Constraint :=
   Constraint.orient (OrientationConstraint.directly_above b a)
 
 
