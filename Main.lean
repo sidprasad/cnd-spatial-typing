@@ -264,5 +264,17 @@ theorem refinement (P : Program) (C : Constraint) :
     apply hSat
     simp [hD]
 
+/--
+Corollary to `refinement`. If a program `P` is a subset of `Q`,
+then the denotation of `Q` is a superset of the denotation of `P`.
+-/
+theorem monotonicity {P Q : Program} (hPQ : P ⊆ Q) : (denotes Q) ⊆ (denotes P) := by
+  intro R hR
+  simp [denotes, satisfies_program] at *
+  rcases hR with ⟨hWF, hSatQ⟩
+  refine ⟨hWF, ?_⟩
+  intro D hDP
+  exact hSatQ D (hPQ hDP)
 
--- end CnD
+
+end CnD
