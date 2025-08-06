@@ -219,8 +219,14 @@ noncomputable def satisfies_perturbation (R : Realization) (L : List Atom) (k : 
 -- §4 Semantics
 --------------------------------------------------------------------------------
 
-
+/--
+A program is just a finite set of constraints.
+-/
 abbrev Program := Finset Constraint
+
+/-- Programs compose by union -/
+def Program.compose (P Q : Program) : Program :=
+  P ∪ Q
 
 def satisfies_constraint (R : Realization) : Constraint → Prop
 | .orient c => satisfies_orient R c
