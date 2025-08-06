@@ -324,19 +324,83 @@ def cyclic_counterclockwise (L : List Atom) : Constraint :=
   Constraint.cyclic L.reverse
 
 
--- Now write the decomp from selectors to List/ Group / Pair
 
--- BUT Cyclic Constraints take selectors!
--- TODO: Set of Tuples to set of List Atom for cyclic constraints (DFS)
+end Sugar
 
+
+
+--------------------------------------------------------------------------------
+-- §8 Selectors
+--------------------------------------------------------------------------------
+
+-- But CnD specs are written in terms of selectors,
+-- which are a set of atoms that are selected by the user.
+
+-- There are two kinds of selectors:
+-- 1. Arity-1 selectors: Sets of atoms, e.g. `{ A, B }`
+-- 2. Arity-2 selectors: Pairs of atoms, e.g. `{ (A, B), (B, C) }`
+/--
+Selectors are user-defined sets of atoms or pairs of atoms.
+-/
+inductive Selector
+| arity1 (atoms : Finset Atom) -- A set of atoms
+| arity2 (pairs : Finset (Atom × Atom)) -- A set of pairs of atoms
+deriving BEq, DecidableEq
+
+-- Orientation Constraints take Arity-2 selectors and apply them to each pair of atoms.
+/--
+Apply an orientation constraint to all pairs in an arity-2 selector.
+-/
+def apply_orientation (sel : Selector) (c : Atom → Atom → OrientationConstraint) : Program :=
+  match sel with
+  | Selector.arity2 pairs => pairs.image (fun (a, b) => Constraint.orient (c a b))
+  | _ => ∅ -- Orientation constraints are only valid for arity-2 selectors
+
+
+
+
+-- Group Constraints take Arity-1 selectors and apply them to the set of atoms.
+/--
+Apply a grouping constraint to all atoms in an arity-1 selector.
+-/
+def apply_grouping (sel : Selector) : Program :=
+  match sel with
+  | Selector.arity1 atoms => { Constraint.group atoms }
+  | _ => ∅ -- Grouping constraints are only valid for arity-1 selectors
+
+
+
+-- Cyclic COnstraints take Arity-2 selectors, and build lists of atoms from them, reading (A, B) as A is before B in the cycle.
+-- If the cycle is closed (e.g. { (A, B), (B, C), (C, A) }), we arbitrarily pick a starting point (e.g. A).
+-- e.g.
 -- { (A, B) , (B, C), (C, A) }  --> [A, B, C]
 -- { (A, B), (C, D), (B, C) }  --> [A, B, C, D]
 -- { (A, B), (A, C) } -> { [A, B], [A, C] }
 
+/--
+Build a cyclic constraint from an arity-2 selector.
+If the cycle is closed (e.g., `{(A, B), (B, C), (C, A)}`), we construct a single cycle.
+If the pairs are disconnected (e.g., `{(A, B), (C, D)}`), we construct multiple cycles.
+-/
+def apply_cyclic (sel : Selector) : Program :=
+  match sel with
+  | Selector.arity2 pairs =>
+    let adjacency := pairs.toList.foldl (fun acc (a, b) => acc.insert a b) ∅
+    let cycles := adjacency.toList.map (fun (start, _) => reconstruct_cycle start adjacency)
+    cycles.foldl (fun acc cycle => acc ∪ {Constraint.cyclic cycle}) ∅
+  | _ => ∅ -- Cyclic constraints are only valid for arity-2 selectors
 
-
-end Sugar
-
+/--
+Reconstruct a cycle starting from a given atom.
+-/
+def reconstruct_cycle (start : Atom) (adjacency : Finset (Atom × Atom)) : List Atom :=
+  let rec loop (current : Atom) (visited : List Atom) : List Atom :=
+    if current ∈ visited then visited.reverse
+    else
+      match adjacency.find? (fun (a, b) => a = current) with
+      | some (_, next) => loop next (current :: visited)
+      | none => visited.reverse
+  loop start []
 
 
 end CnD
