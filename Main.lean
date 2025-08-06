@@ -400,18 +400,21 @@ def build_next_atom_map (pairs : List (Atom × Atom)) : Atom → List Atom :=
       acc.insert a (b :: curr)) ∅
   fun atom => adjacency.getD atom []
 
+
 /--
 Traverse the graph from a given atom, enumerating all paths.
 Stop traversal if an atom is revisited.
 -/
-def traverse_paths (start : Atom) (nextAtomMap : Atom → List Atom) : List (List Atom) :=
-  let rec dfs (current : Atom) (visited : List Atom) : List (List Atom) :=
-    if visited.contains current then [visited.reverse]
+def traverse_paths (start : Atom) (nextAtomMap : Atom → List Atom) (allAtoms : Finset Atom) : List (List Atom) :=
+  let rec dfs (current : Atom) (visited : List Atom) (remaining : Nat) : List (List Atom) :=
+    if remaining = 0 then [visited.reverse]  -- Safety bound
+    else if visited.contains current then [visited.reverse]  -- Cycle detected
     else
       let neighbors := nextAtomMap current
-      neighbors.flatMap (fun neighbor => dfs neighbor (current :: visited))
-  dfs start []
-
+      neighbors.flatMap (fun neighbor => dfs neighbor (current :: visited) (remaining - 1))
+  -- We're leveraging the face that we have a finite set of atoms to limit
+  -- the depth of our search.
+  dfs start [] allAtoms.card
 /--
 Check if two paths are equivalent under rotation.
 -/
@@ -457,8 +460,8 @@ represents a unique cycle derived from the input pairs.
 noncomputable def pairs_to_unique_cycles (pairs : List (Atom × Atom)) : List (List Atom) :=
   let nextAtomMap := build_next_atom_map pairs
   -- Get all unique starting atoms
-  let startAtoms := (pairs.map Prod.fst ++ pairs.map Prod.snd).toFinset.toList
-  let allPaths := startAtoms.flatMap (fun start => traverse_paths start nextAtomMap)
+  let startAtoms := (pairs.map Prod.fst ++ pairs.map Prod.snd).toFinset
+  let allPaths := startAtoms.toList.flatMap (fun start => traverse_paths start nextAtomMap startAtoms)
   deduplicate_and_filter_cyclic_subpaths allPaths
 
 /--
