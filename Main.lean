@@ -351,45 +351,42 @@ end Sugar
 -- There are two kinds of selectors:
 -- 1. Arity-1 selectors: Sets of atoms, e.g. `{ A, B }`
 -- 2. Arity-2 selectors: Pairs of atoms, e.g. `{ (A, B), (B, C) }`
+
 /--
-Selectors are user-defined sets of atoms or pairs of atoms.
+An arity-1 selector: a set of atoms.
 -/
-inductive Selector
-| arity1 (atoms : Finset Atom) -- A set of atoms
-| arity2 (pairs : Finset (Atom × Atom)) -- A set of pairs of atoms
-deriving BEq, DecidableEq
+abbrev Selector1 := Finset Atom
+
+/--
+An arity-2 selector: a set of pairs of atoms.
+-/
+abbrev Selector2 := Finset (Atom × Atom)
 
 -- Orientation Constraints take Arity-2 selectors and apply them to each pair of atoms.
 /--
 Apply an orientation constraint to all pairs in an arity-2 selector.
 -/
-def apply_orientation (sel : Selector) (c : Atom → Atom → OrientationConstraint) : Program :=
-  match sel with
-  | Selector.arity2 pairs => pairs.image (fun (a, b) => Constraint.orient (c a b))
-  | _ => ∅ -- Orientation constraints are only valid for arity-2 selectors
-
-
-
+def apply_orientation (sel : Selector2) (c : Atom → Atom → OrientationConstraint) : Program :=
+  sel.image (fun (a, b) => Constraint.orient (c a b))
 
 -- Group Constraints take Arity-1 selectors and apply them to the set of atoms.
 /--
 Apply a grouping constraint to all atoms in an arity-1 selector.
 -/
-def apply_grouping (sel : Selector) : Program :=
-  match sel with
-  | Selector.arity1 atoms => { Constraint.group atoms }
-  | _ => ∅ -- Grouping constraints are only valid for arity-1 selectors
+def apply_grouping (sel : Selector1) : Program :=
+  { Constraint.group sel }
 
 
+--------------------------------------------------------------------------------
+-- §8.1 Cyclic Constraints
 
--- Cyclic COnstraints take Arity-2 selectors, and build lists of atoms from them, reading (A, B) as A is before B in the cycle.
--- If the cycle is closed (e.g. { (A, B), (B, C), (C, A) }), we arbitrarily pick a starting point (e.g. A).
--- e.g.
+-- Cyclic Constraints take Arity-2 selectors interpreting them as adjacency pairs.
 -- { (A, B) , (B, C), (C, A) }  --> [A, B, C]
 -- { (A, B), (C, D), (B, C) }  --> [A, B, C, D]
 -- { (A, B), (A, C) } -> { [A, B], [A, C] }
+--------------------------------------------------------------------------------
 
---- Helpers ---
+-- Helpers --
 /--
 Build a mapping from each atom to its list of successors based on the input pairs.
 -/
@@ -399,7 +396,6 @@ def build_next_atom_map (pairs : List (Atom × Atom)) : Atom → List Atom :=
       let curr := acc.getD a []
       acc.insert a (b :: curr)) ∅
   fun atom => adjacency.getD atom []
-
 
 /--
 Traverse the graph from a given atom, enumerating all paths.
@@ -412,9 +408,10 @@ def traverse_paths (start : Atom) (nextAtomMap : Atom → List Atom) (allAtoms :
     else
       let neighbors := nextAtomMap current
       neighbors.flatMap (fun neighbor => dfs neighbor (current :: visited) (remaining - 1))
-  -- We're leveraging the face that we have a finite set of atoms to limit
+  -- We're leveraging the fact that we have a finite set of atoms to limit
   -- the depth of our search.
   dfs start [] allAtoms.card
+
 /--
 Check if two paths are equivalent under rotation.
 -/
@@ -467,14 +464,30 @@ noncomputable def pairs_to_unique_cycles (pairs : List (Atom × Atom)) : List (L
 /--
 Build a cyclic constraint from an arity-2 selector.
 -/
-noncomputable def apply_cyclic (sel : Selector) : Program :=
-  match sel with
-  | Selector.arity2 pairs =>
-    let cycles := pairs_to_unique_cycles pairs.toList
-    cycles.foldl (fun acc cycle => acc ∪ {Constraint.cyclic cycle}) ∅
-  | _ => ∅ -- Cyclic constraints are only valid for arity-2 selectors
+noncomputable def apply_cyclic (sel : Selector2) : Program :=
+  let cycles := pairs_to_unique_cycles sel.toList
+  cycles.foldl (fun acc cycle => acc ∪ {Constraint.cyclic cycle}) ∅
+
+-- Surface constraints are what
+-- users specify in CnD specs.
+inductive CnDConstraint
+| orient (sel : Selector2) (c : Atom → Atom → OrientationConstraint)
+| group  (sel : Selector1)
+| cyclic (sel : Selector2)
+
+/--
+Convert a surface constraint to a program.
+-/
+noncomputable def CnDConstraint.toProgram : CnDConstraint → Program
+| .orient sel c => apply_orientation sel c
+| .group sel => apply_grouping sel
+| .cyclic sel => apply_cyclic sel
 
 
-
+/--
+Combine all surface constraints into a program.
+-/
+noncomputable def surface_constraints_to_program (scs : List CnDConstraint) : Program :=
+  scs.foldl (fun acc sc => Program.compose acc sc.toProgram) ∅
 
 end CnD
