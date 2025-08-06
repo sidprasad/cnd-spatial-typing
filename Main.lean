@@ -15,6 +15,8 @@ import Mathlib.Data.Set.Basic
 import Mathlib.Data.List.Basic
 import Mathlib.Tactic
 
+import Std.Data.HashMap
+
 
 namespace CnD
 
@@ -31,6 +33,10 @@ structure Atom where
   width  : Rat
   height : Rat
 deriving BEq, DecidableEq
+
+/-- Needed later for cyclic constr. -/
+instance : Hashable Atom where
+  hash a := hash a.id
 
 instance : Inhabited Atom where
   default := { id := 0, width := 1, height := 1 }
@@ -383,30 +389,89 @@ def apply_grouping (sel : Selector) : Program :=
 -- { (A, B), (C, D), (B, C) }  --> [A, B, C, D]
 -- { (A, B), (A, C) } -> { [A, B], [A, C] }
 
+--- Helpers ---
+/--
+Build a mapping from each atom to its list of successors based on the input pairs.
+-/
+def build_next_atom_map (pairs : List (Atom × Atom)) : Atom → List Atom :=
+  let adjacency : Std.HashMap Atom (List Atom) :=
+    pairs.foldl (fun acc (a, b) =>
+      let curr := acc.getD a []
+      acc.insert a (b :: curr)) ∅
+  fun atom => adjacency.getD atom []
+
+/--
+Traverse the graph from a given atom, enumerating all paths.
+Stop traversal if an atom is revisited.
+-/
+def traverse_paths (start : Atom) (nextAtomMap : Atom → List Atom) : List (List Atom) :=
+  let rec dfs (current : Atom) (visited : List Atom) : List (List Atom) :=
+    if visited.contains current then [visited.reverse]
+    else
+      let neighbors := nextAtomMap current
+      neighbors.flatMap (fun neighbor => dfs neighbor (current :: visited))
+  dfs start []
+
+/--
+Check if two paths are equivalent under rotation.
+-/
+def paths_equivalent (path1 path2 : List Atom) : Bool :=
+  path1.length = path2.length &&
+  (List.range path1.length).any (fun i => path1.rotateLeft i = path2)
+
+/--
+Check if one path is a subpath of another, considering rotations.
+For cyclic paths, we need to check if the shorter path appears as
+a contiguous subsequence in any rotation of the longer path.
+-/
+def is_cyclic_subpath (sub : List Atom) (super : List Atom) : Bool :=
+  if sub.length >= super.length then false
+  else
+    -- Check if sub appears as a contiguous subsequence in any rotation of super
+    (List.range super.length).any (fun i =>
+      let rotated := super.rotateLeft i
+      rotated.take sub.length = sub)
+
+/--
+Remove equivalent paths and subpaths while preserving order.
+This function:
+1. Removes rotational duplicates (keeping the first occurrence)
+2. Removes paths that are cyclic subpaths of other paths
+-/
+def deduplicate_and_filter_cyclic_subpaths (paths : List (List Atom)) : List (List Atom) :=
+  -- Step 1: Remove rotational duplicates
+  let deduplicated := paths.foldl (fun acc path =>
+    if acc.any (fun existing => paths_equivalent existing path)
+    then acc
+    else acc ++ [path]
+  ) []
+
+  -- Step 2: Remove cyclic subpaths
+  deduplicated.filter (fun path =>
+    ¬ deduplicated.any (fun other => is_cyclic_subpath path other))
+
+/--
+Convert a `List (Atom × Atom)` into a `List (List Atom)`, where each inner list
+represents a unique cycle derived from the input pairs.
+-/
+noncomputable def pairs_to_unique_cycles (pairs : List (Atom × Atom)) : List (List Atom) :=
+  let nextAtomMap := build_next_atom_map pairs
+  -- Get all unique starting atoms
+  let startAtoms := (pairs.map Prod.fst ++ pairs.map Prod.snd).toFinset.toList
+  let allPaths := startAtoms.flatMap (fun start => traverse_paths start nextAtomMap)
+  deduplicate_and_filter_cyclic_subpaths allPaths
+
 /--
 Build a cyclic constraint from an arity-2 selector.
-If the cycle is closed (e.g., `{(A, B), (B, C), (C, A)}`), we construct a single cycle.
-If the pairs are disconnected (e.g., `{(A, B), (C, D)}`), we construct multiple cycles.
 -/
-def apply_cyclic (sel : Selector) : Program :=
+noncomputable def apply_cyclic (sel : Selector) : Program :=
   match sel with
   | Selector.arity2 pairs =>
-    let adjacency := pairs.toList.foldl (fun acc (a, b) => acc.insert a b) ∅
-    let cycles := adjacency.toList.map (fun (start, _) => reconstruct_cycle start adjacency)
+    let cycles := pairs_to_unique_cycles pairs.toList
     cycles.foldl (fun acc cycle => acc ∪ {Constraint.cyclic cycle}) ∅
   | _ => ∅ -- Cyclic constraints are only valid for arity-2 selectors
 
-/--
-Reconstruct a cycle starting from a given atom.
--/
-def reconstruct_cycle (start : Atom) (adjacency : Finset (Atom × Atom)) : List Atom :=
-  let rec loop (current : Atom) (visited : List Atom) : List Atom :=
-    if current ∈ visited then visited.reverse
-    else
-      match adjacency.find? (fun (a, b) => a = current) with
-      | some (_, next) => loop next (current :: visited)
-      | none => visited.reverse
-  loop start []
+
 
 
 end CnD
