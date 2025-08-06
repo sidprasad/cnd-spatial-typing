@@ -23,7 +23,8 @@ namespace CnD
 --------------------------------------------------------------------------------
 
 /--
-Atoms are the basic diagram elements. Each atom has an identifier and dimensions (which identify its footprint).
+Atoms are the basic diagram elements. Each atom has an identifier and dimensions
+(which identify its footprint).
 -/
 structure Atom where
   id     : Nat
@@ -68,7 +69,7 @@ def contains (rect : GroupBoundary) (box : Box) : Prop :=
 
 --- And some utilities for cyclic geometry ---
 
-/-- Angle step between atoms on a circle of size `n`. -/
+/-- Angle step between `n` atoms on a circle. -/
 noncomputable def angleStep (n : Nat) : ℝ := (2 * Real.pi) / n
 
 
@@ -321,6 +322,18 @@ and apply the cyclic constraint.
 -/
 def cyclic_counterclockwise (L : List Atom) : Constraint :=
   Constraint.cyclic L.reverse
+
+
+-- Now write the decomp from selectors to List/ Group / Pair
+
+-- BUT Cyclic Constraints take selectors!
+-- TODO: Set of Tuples to set of List Atom for cyclic constraints (DFS)
+
+-- { (A, B) , (B, C), (C, A) }  --> [A, B, C]
+-- { (A, B), (C, D), (B, C) }  --> [A, B, C, D]
+-- { (A, B), (A, C) } -> { [A, B], [A, C] }
+
+
 
 end Sugar
 
