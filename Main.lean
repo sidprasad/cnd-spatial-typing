@@ -376,6 +376,33 @@ Apply a grouping constraint to all atoms in an arity-1 selector.
 def apply_grouping (sel : Selector1) : Program :=
   { Constraint.group sel }
 
+/--
+Build groups from arity-2 selector pairs.
+The first element of each pair is the "key" and the second element joins that key's group.
+The key itself is NOT included in the group.
+e.g. { (A, B), (A, C), (D, E) } -> { {B, C}, {E} }
+-/
+noncomputable def build_groups (sel : Selector2) : Finset (Finset Atom) :=
+  -- Build a map from key atoms to their associated atoms (excluding the key)
+  let groupMap : Std.HashMap Atom (Finset Atom) :=
+    sel.toList.foldl (fun (acc : Std.HashMap Atom (Finset Atom)) (pair : Atom × Atom) =>
+      let (key, value) := pair
+      let existing := acc.getD key ∅  -- Start with empty set (key not included)
+      acc.insert key (existing ∪ {value})  -- Use union with singleton set
+    ) {}
+
+  -- Convert the map values to a finset of groups
+  groupMap.fold (fun (acc : Finset (Finset Atom)) (_ : Atom) (atomSet : Finset Atom) =>
+    acc ∪ {atomSet}) ∅
+
+/--
+Apply grouping constraints for arity-2 selectors.
+Groups atoms where the first element is the key, but the key is not in the group.
+e.g. { (A, B), (A, C), (D, E) } -> { {B, C}, {E} }
+-/
+noncomputable def apply_grouping_arity2 (sel : Selector2) : Program :=
+  let groups := build_groups sel
+  groups.image (fun s => Constraint.group s)
 
 --------------------------------------------------------------------------------
 -- §8.1 Cyclic Constraints
@@ -472,7 +499,8 @@ noncomputable def apply_cyclic (sel : Selector2) : Program :=
 -- users specify in CnD specs.
 inductive CnDConstraint
 | orient (sel : Selector2) (c : Atom → Atom → OrientationConstraint)
-| group  (sel : Selector1)
+| group1  (sel : Selector1)
+| group2 (sel: Selector2)
 | cyclic (sel : Selector2)
 
 /--
@@ -480,7 +508,8 @@ Convert a surface constraint to a program.
 -/
 noncomputable def CnDConstraint.toProgram : CnDConstraint → Program
 | .orient sel c => apply_orientation sel c
-| .group sel => apply_grouping sel
+| .group1 sel => apply_grouping sel
+| .group2 sel => apply_grouping_arity2 sel
 | .cyclic sel => apply_cyclic sel
 
 
