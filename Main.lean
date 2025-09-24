@@ -25,13 +25,12 @@ namespace CnD
 --------------------------------------------------------------------------------
 
 /--
-Atoms are the basic diagram elements. Each atom has an identifier and dimensions
-(which identify its footprint).
+Atoms are the basic PROGRAM elements. Each atom has an identifier.
 -/
 structure Atom where
   id     : Nat
-  width  : Rat
-  height : Rat
+  -- width  : Rat
+  -- height : Rat
 deriving BEq, DecidableEq
 
 /-- Needed later for cyclic constr. -/
@@ -39,11 +38,12 @@ instance : Hashable Atom where
   hash a := hash a.id
 
 instance : Inhabited Atom where
-  default := { id := 0, width := 1, height := 1 }
+  default := { id := 0}
 
 
 /--
-A box is a placed footprint of an atom on the canvas.
+Boxes are realizations of atoms in 2D space.
+They exist at the layout/diagram level.
 -/
 structure Box where
   xmin   : Rat
@@ -52,14 +52,20 @@ structure Box where
   height : Rat
 deriving BEq, DecidableEq
 
--- We define some spatial primitives for boxes in terms of coordinate systems.
+/-
+These are the predicates
+that operate on boxes.
+-/
 def horizontally_aligned (a b : Box) : Prop := a.ymin = b.ymin
 def vertically_aligned   (a b : Box) : Prop := a.xmin = b.xmin
 def left_of              (a b : Box) : Prop := a.xmin + a.width < b.xmin
 def above                (a b : Box) : Prop := a.ymin + a.height < b.ymin
 
 
--- Rectangular region to define group boundaries
+/--
+
+  Group boundaries are ANOTHER layout/diagram-level construct.
+-/
 structure GroupBoundary where
   xmin : Rat
   ymin : Rat
